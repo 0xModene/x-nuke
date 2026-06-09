@@ -1,8 +1,9 @@
 # x-nuke
 
-Scorched-earth deletion of your own X/Twitter content. Drives your real Brave
-browser session over Chrome DevTools Protocol, so it acts inside your already
-logged-in account — no API keys, no $200/month X subscription.
+Scorched-earth deletion of your own X/Twitter content. Drives your real
+Chromium-based browser session (Brave, Chrome, Edge, Chromium, Arc, Vivaldi)
+over Chrome DevTools Protocol, so it acts inside your already logged-in
+account — no API keys, no $200/month X subscription.
 
 Deletes, in order:
 
@@ -22,7 +23,10 @@ This is **destructive and irreversible.** Run it knowing exactly what it does.
 Prerequisites:
 
 - macOS (Linux mostly works; Windows untested)
-- [Brave Browser](https://brave.com/) installed and signed in to your X account
+- Any Chromium-based browser installed and signed in to your X account.
+  Auto-detected in this priority order: **Brave, Chrome, Edge, Chromium, Arc
+  (macOS), Vivaldi**. Override with `BROWSER=chrome ./nuke.sh` if you want a
+  specific one.
 - Python 3.10+
 
 ```bash
@@ -35,8 +39,9 @@ That's it. The launcher:
 
 1. Creates a Python virtual env and installs deps (one-time, ~30 s)
 2. Installs Playwright's Chromium binary as a fallback (one-time, ~90 s)
-3. Restarts Brave with `--remote-debugging-port=9222` so Playwright can attach
-   (pauses to let you save work first if Brave is open)
+3. Detects which Chromium browser you have installed (Brave / Chrome / Edge /
+   Chromium / Arc / Vivaldi) and restarts it with `--remote-debugging-port=9222`
+   so Playwright can attach (pauses to let you save work first if it's open)
 4. Waits for the debug port to come up
 5. **Launches 6 wipe processes in parallel**, each in its own Brave tab.
    Tweets is split into two passes — Posts tab (`/<handle>`) and Replies tab
@@ -62,14 +67,14 @@ Output is prefixed per category so the streams stay readable:
 
 Ctrl+C kills every child cleanly.
 
-If you're not signed in to x.com in Brave, a tab will open to the login page
-and the tool will wait up to 10 minutes for you to finish signing in (handle
-2FA normally), then continue automatically.
+If you're not signed in to x.com in your browser, a tab will open to the
+login page and the tool will wait up to 10 minutes for you to finish signing
+in (handle 2FA normally), then continue automatically.
 
 **Heads-up on parallel mode:** each category's Playwright tab calls
-`bring_to_front()` when it navigates, so your Brave focus will jump between
-the 5 tabs. Don't try to use Brave for anything else while parallel runs are
-active. Also: X rate-limits per *account*, not per tab, so running 5 in
+`bring_to_front()` when it navigates, so your browser focus will jump between
+the 6 tabs. Don't try to use it for anything else while parallel runs are
+active. Also: X rate-limits per *account*, not per tab, so running 6 in
 parallel hits the `Too many requests` ceiling sooner — the script's 5-min
 backoff kicks in per-tab when that happens.
 
@@ -147,14 +152,22 @@ python wipe.py all --yes-really-delete --force
 
 `wipe.py --help` lists every subcommand and flag.
 
-### Browsers other than Brave
+### Forcing a specific browser
 
-`./nuke.sh` is hardcoded to Brave because that's what the author uses. The
-underlying Python tool supports any Chromium-based browser via `--cdp` (CDP
-attach to your launched browser), or `--browser chrome|brave|edge` to let
-Playwright launch your system browser using your real profile. For
-Chrome/Edge, copy `nuke.sh` and change the `BRAVE_BIN` / `BRAVE_PROFILE`
-lines, or run the python command directly.
+`./nuke.sh` auto-detects in priority order **Brave → Chrome → Edge →
+Chromium → Arc → Vivaldi**. Override with the `BROWSER` env var:
+
+```bash
+BROWSER=chrome ./nuke.sh
+BROWSER=edge ./nuke.sh
+```
+
+The underlying Python tool can also be driven directly (skip `nuke.sh`):
+
+- `python wipe.py ... --cdp http://127.0.0.1:9222` attaches to a debug-enabled
+  browser you launched yourself.
+- `python wipe.py ... --browser chrome|brave|edge` lets Playwright launch a
+  system browser with your real profile (browser must be fully quit first).
 
 ## Project layout
 
