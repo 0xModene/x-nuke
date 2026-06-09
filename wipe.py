@@ -27,8 +27,8 @@ from xnuke.session import browser, first_page, is_logged_in, handle_from_session
 # Categories that `all` expands to when run sequentially in a single process.
 CATEGORIES = ("tweets", "likes", "bookmarks", "dms", "lists")
 
-# Extra single-pass subcommands so parallel runners can split tweets into two tabs.
-EXTRA_CATEGORIES = ("tweets-posts", "tweets-replies")
+# Extra single-pass subcommands so parallel runners can split tweets across tabs.
+EXTRA_CATEGORIES = ("tweets-posts", "tweets-replies", "tweets-search")
 
 
 def _browser_kwargs(args: argparse.Namespace) -> dict:
@@ -138,6 +138,9 @@ def _run_category(name: str, page) -> int:
     if name == "tweets-replies":
         from xnuke.tweets import wipe_tweets_replies
         return wipe_tweets_replies(page)
+    if name == "tweets-search":
+        from xnuke.tweets import wipe_tweets_search
+        return wipe_tweets_search(page)
     if name == "likes":
         from xnuke.likes import wipe_likes
         return wipe_likes(page)
@@ -221,6 +224,8 @@ def build_parser() -> argparse.ArgumentParser:
             help_text = "Delete posts + reposts only (the /<handle> tab)."
         elif cat == "tweets-replies":
             help_text = "Delete replies only (the /<handle>/with_replies tab)."
+        elif cat == "tweets-search":
+            help_text = "Final sweep via search — catches chain-buried replies."
         else:
             help_text = f"Delete all {cat}."
         sp = sub.add_parser(cat, help=help_text)

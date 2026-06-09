@@ -190,8 +190,10 @@ fi
 # If you're not logged in to x.com, the Python tool will open the login page in
 # a tab and wait up to 10 minutes for you to finish.
 
-# In parallel mode, tweets is split into two passes so each runs in its own tab.
-CATEGORIES=(tweets-posts tweets-replies likes bookmarks dms lists)
+# In parallel mode, tweets is split into three passes so each runs in its own tab.
+# tweets-search is the final sweep that catches chain-buried replies the Replies tab
+# hides behind "Show this thread".
+CATEGORIES=(tweets-posts tweets-replies tweets-search likes bookmarks dms lists)
 
 run_one_sequential() {
   exec python wipe.py "$1" --yes-really-delete --force --cdp "${CDP_URL}"

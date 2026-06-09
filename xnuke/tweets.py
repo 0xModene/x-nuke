@@ -229,7 +229,8 @@ def wipe_tweets_posts(page: Page, max_steps: int = 100000) -> int:
 
 def wipe_tweets_replies(page: Page, max_steps: int = 100000) -> int:
     """Drain only the Replies tab. Slower per-action because reply chains interleave
-    other people's tweets we have to skip past."""
+    other people's tweets we have to skip past. Misses replies that X hides behind
+    "Show this thread" — those are caught by wipe_tweets_search."""
     handle = _require_handle(page)
     info(f"Wiping replies for @{handle}")
     return _drain_timeline(
@@ -237,10 +238,25 @@ def wipe_tweets_replies(page: Page, max_steps: int = 100000) -> int:
     )
 
 
+def wipe_tweets_search(page: Page, max_steps: int = 100000) -> int:
+    """Drain `from:<handle>` search results. Search lists every tweet you authored as
+    flat top-level articles — no thread grouping — so it catches replies buried in
+    chains that the Replies tab collapsed behind 'Show this thread' links."""
+    handle = _require_handle(page)
+    info(f"Wiping search results from:@{handle}")
+    return _drain_timeline(
+        page,
+        f"https://x.com/search?q=from%3A{handle}&src=typed_query&f=live",
+        "tweets[search]",
+        max_steps,
+    )
+
+
 def wipe_tweets(page: Page, max_steps: int = 100000) -> int:
-    """Run both passes sequentially in the same tab — for non-parallel callers."""
+    """Run all three passes sequentially in the same tab — for non-parallel callers."""
     n_posts = wipe_tweets_posts(page, max_steps)
     n_replies = wipe_tweets_replies(page, max_steps)
-    total = n_posts + n_replies
-    info(f"tweets total: {total} (posts: {n_posts}, replies: {n_replies})")
+    n_search = wipe_tweets_search(page, max_steps)
+    total = n_posts + n_replies + n_search
+    info(f"tweets total: {total} (posts: {n_posts}, replies: {n_replies}, search: {n_search})")
     return total

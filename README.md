@@ -22,16 +22,17 @@ cd x-nuke
 ./nuke.sh
 ```
 
-`./nuke.sh` runs all 6 categories in parallel, one tab each. Each tab closes itself when its category is empty. Output is prefixed `[tweets-posts]`, `[likes]`, etc.
+`./nuke.sh` runs 7 categories in parallel, one tab each. Each tab closes itself when its category is empty. Output is prefixed `[tweets-posts]`, `[likes]`, etc.
 
 If you aren't signed in to x.com, a login tab opens and the run waits up to 10 minutes for you to finish.
 
 ## Single-category runs
 
 ```bash
-./nuke.sh tweets           # posts + replies, sequential, one tab
+./nuke.sh tweets           # posts + replies + search, sequential, one tab
 ./nuke.sh tweets-posts
 ./nuke.sh tweets-replies
+./nuke.sh tweets-search    # final sweep for chain-buried replies
 ./nuke.sh likes
 ./nuke.sh bookmarks
 ./nuke.sh dms
