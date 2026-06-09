@@ -26,7 +26,7 @@ Prerequisites:
 - Python 3.10+
 
 ```bash
-git clone <YOUR_REPO_URL> x-nuke
+git clone https://github.com/0xModene/x-nuke.git
 cd x-nuke
 ./nuke.sh
 ```
