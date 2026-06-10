@@ -7,6 +7,7 @@ from .common import (
     human_pause,
     maybe_backoff,
     safe_goto,
+    scroll_a_bit,
     short_pause,
 )
 from .log import info, warn, progress
@@ -43,50 +44,54 @@ def wipe_bookmarks(page: Page, max_steps: int = 100000) -> int:
         human_pause()
         return -1  # sentinel: bulk clear used
 
+    # Phrases X has used to mean "no bookmarks here".
+    empty_phrases = (
+        "you haven't added any bookmarks",
+        "no bookmarks yet",
+        "no bookmarks here",
+        "save posts for later",
+    )
+
     deleted = 0
-    consecutive_empty = 0
-    reload_attempted = False
+    no_progress_streak = 0  # iterations since the last successful delete
+
     for _ in range(max_steps):
         if maybe_backoff(page):
             continue
 
         rm = page.locator('button[data-testid="removeBookmark"]').first
-        try:
-            if rm.count() == 0:
-                # Only do the body-text empty-state check when there's nothing visible.
-                try:
-                    body = page.locator("body").inner_text(timeout=4000).lower()
-                except Exception:
-                    body = ""
-                if "you haven't added any bookmarks" in body or "no bookmarks yet" in body:
-                    info("No more bookmarks visible.")
-                    break
-
-                consecutive_empty += 1
-                if consecutive_empty >= 3:
-                    if reload_attempted:
-                        info("No remove-bookmark buttons after reload — bookmarks are done.")
-                        break
-                    info("No remove-bookmark buttons; reloading once to verify.")
-                    safe_goto(page, url)
-                    consecutive_empty = 0
-                    reload_attempted = True
-                    continue
+        if rm.count() > 0:
+            try:
+                rm.click(timeout=4000)
+                fast_pause()
+            except Exception as e:
+                warn(f"Bookmark remove failed: {e}")
+                no_progress_streak += 1
                 short_pause()
                 continue
-
-            rm.click(timeout=4000)
-            fast_pause()
-        except Exception as e:
-            warn(f"Bookmark remove failed: {e}")
-            short_pause()
+            no_progress_streak = 0
+            deleted += 1
+            if deleted % 25 == 0:
+                progress("bookmarks", deleted)
             continue
 
-        consecutive_empty = 0
-        reload_attempted = False
-        deleted += 1
-        if deleted % 25 == 0:
-            progress("bookmarks", deleted)
+        # No remove-buttons visible — check empty state, scroll to load more,
+        # and bail out after a few cycles with no progress.
+        try:
+            body = page.locator("body").inner_text(timeout=4000).lower()
+        except Exception:
+            body = ""
+        if any(p in body for p in empty_phrases):
+            info("No more bookmarks visible.")
+            break
+
+        scroll_a_bit(page, 1500)
+        no_progress_streak += 1
+        short_pause()
+
+        if no_progress_streak >= 6:
+            info("No remove-bookmark buttons after scrolling — bookmarks are done.")
+            break
 
     progress("bookmarks", deleted)
     return deleted
