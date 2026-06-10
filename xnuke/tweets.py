@@ -145,28 +145,27 @@ def _try_caret_action(page: Page, art) -> str | None:
     return action
 
 
-def _try_act_on_visible_article(page: Page) -> str | None:
-    """Walk every visible article. Prefer the unretweet-button path for own reposts; fall
-    back to the caret menu for posts/replies. Articles that aren't yours get skipped."""
-    articles = page.locator('article[data-testid="tweet"]')
-    count = articles.count()
-    for i in range(count):
-        art = articles.nth(i)
-        try:
-            if not art.is_visible():
-                continue
-        except Exception:
-            continue
-        result = _try_undo_repost_via_button(page, art)
-        if result is not None:
-            return result
-        result = _try_caret_action(page, art)
-        if result is not None:
-            return result
-    return None
+def _try_act_on_article(page: Page, art) -> str | None:
+    """Try to delete / undo repost / unpin this one article. Returns the action label,
+    or None if the article isn't yours (no Delete/Undo/Unpin in its menu)."""
+    result = _try_undo_repost_via_button(page, art)
+    if result is not None:
+        return result
+    return _try_caret_action(page, art)
 
 
 def _drain_timeline(page: Page, url: str, label: str, max_steps: int) -> int:
+    """Walk through the timeline once with a persistent cursor.
+
+    The cursor advances when an article is non-actionable (foreign reply context, etc.)
+    and stays put when an article is successfully acted on — because after the
+    deletion the DOM shifts, and what was at cursor+1 is now at cursor. This makes
+    the cost roughly O(visible_articles) per pass instead of O(visible² × deletes)
+    that a restart-from-top loop incurs.
+
+    When the cursor reaches the end of the visible list we scroll; after enough
+    stuck scrolls we reload the page and reset the cursor to 0.
+    """
     safe_goto(page, url)
     try:
         page.wait_for_selector('article[data-testid="tweet"]', timeout=15000)
@@ -174,6 +173,7 @@ def _drain_timeline(page: Page, url: str, label: str, max_steps: int) -> int:
         pass
 
     deleted = 0
+    cursor = 0
     stuck_scrolls = 0
     stuck_reloads = 0
     dumped = False
@@ -184,29 +184,44 @@ def _drain_timeline(page: Page, url: str, label: str, max_steps: int) -> int:
         if _is_empty_timeline(page):
             break
 
-        result = _try_act_on_visible_article(page)
+        articles = page.locator('article[data-testid="tweet"]')
+        count = articles.count()
+
+        if cursor >= count:
+            scroll_a_bit(page, 800)
+            stuck_scrolls += 1
+            short_pause()
+            if stuck_scrolls >= 6:
+                stuck_scrolls = 0
+                stuck_reloads += 1
+                if not dumped:
+                    dump_diagnostics(page, f"{label}-stuck")
+                    dumped = True
+                if stuck_reloads >= 3:
+                    break
+                safe_goto(page, url)
+                cursor = 0
+            continue
+
+        art = articles.nth(cursor)
+        try:
+            if not art.is_visible():
+                cursor += 1
+                continue
+        except Exception:
+            cursor += 1
+            continue
+
+        result = _try_act_on_article(page, art)
         if result is not None:
             stuck_scrolls = 0
             stuck_reloads = 0
             deleted += 1
             if deleted % 10 == 0:
                 progress(label, deleted, last=result)
-            continue
-
-        # No visible article is yours — scroll to pull in more.
-        scroll_a_bit(page, 800)
-        stuck_scrolls += 1
-        short_pause()
-
-        if stuck_scrolls >= 6:
-            stuck_scrolls = 0
-            stuck_reloads += 1
-            if not dumped:
-                dump_diagnostics(page, f"{label}-stuck")
-                dumped = True
-            if stuck_reloads >= 3:
-                break
-            safe_goto(page, url)
+            # Stay at cursor — the DOM shifted; the next article is at this index.
+        else:
+            cursor += 1
 
     progress(label, deleted)
     return deleted
